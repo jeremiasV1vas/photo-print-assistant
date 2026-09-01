@@ -39,7 +39,16 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
       const targetSize = photo.size === 'custom'
         ? `${photo.customWidth}x${photo.customHeight}`
         : photo.size;
-      const result = await window.electronAPI.analyzeImage(photo.path, targetSize);
+
+      // Convertir la imagen a base64 en el renderer (file.path no está disponible en Chromium)
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(photo.file);
+      });
+
+      const result = await window.electronAPI.analyzeImage(base64, photo.mimeType, targetSize);
       setAiResult(result);
     } catch (error) {
       setAiResult({ success: false, error: error.message });
@@ -130,7 +139,8 @@ function App() {
       return {
         id: Math.random().toString(36).substring(7),
         name: file.name,
-        path: file.path,
+        file,                           // guardamos el File original para poder leerlo como base64
+        mimeType: file.type || 'image/jpeg',
         url,
         size: '10x15',
         customWidth: '',
