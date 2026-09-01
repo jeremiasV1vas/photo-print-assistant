@@ -57,11 +57,54 @@ ipcMain.handle('ping', () => {
   return 'pong from electron main process!';
 });
 
+// Consulta la API y devuelve los modelos disponibles para la clave configurada
+ipcMain.handle('list-models', async () => {
+  try {
+    const apiKey = process.env.AI_API_KEY;
+    if (!apiKey || apiKey === 'your_key_here') {
+      return { success: false, error: 'Falta la API key en .env' };
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: JSON.stringify(data) };
+    const names = (data.models || []).map(m => m.name.replace('models/', ''));
+    return { success: true, models: names };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('analyze-image', async (event, imageBase64, mimeType, targetSize) => {
   try {
     const apiKey = process.env.AI_API_KEY;
     if (!apiKey || apiKey === 'your_key_here') {
       return { success: false, error: "Falta configurar tu AI_API_KEY en el archivo .env." };
+    }
+
+    // Auto-detectar el mejor modelo disponible para visión
+    let modelToUse = null;
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const allModels = (data.models || []).map(m => m.name.replace('models/', ''));
+
+      // Preferencia de modelos con soporte de visión
+      const preferred = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-2.0-pro-exp'];
+      for (const pref of preferred) {
+        if (allModels.some(m => m.includes(pref) || m === pref)) {
+          modelToUse = allModels.find(m => m.includes(pref) || m === pref);
+          break;
+        }
+      }
+      if (!modelToUse) modelToUse = allModels.find(m => m.includes('flash')) || allModels[0];
+    } catch (_) {
+      modelToUse = 'gemini-2.0-flash'; // fallback
+    }
+
+    if (!modelToUse) {
+      return { success: false, error: 'No se encontró ningún modelo disponible con tu API key.' };
     }
 
     const { GoogleGenAI } = require('@google/genai');
@@ -70,48 +113,30 @@ ipcMain.handle('analyze-image', async (event, imageBase64, mimeType, targetSize)
     const prompt = `Analiza esta fotografía para impresión en tamaño ${targetSize} cm.
 Respondé en formato JSON con esta estructura exacta (sin texto extra):
 {"suggestedRotation": 0, "analysis": "Tu análisis breve y amigable aquí (máximo 2 oraciones)."}
+En "analysis" indicá si la orientación es adecuada o si hay riesgo de cortar algo importante.`;
 
-En "analysis" indicá si la orientación de la foto es adecuada para ese tamaño, o si hay riesgo de cortar algo importante como caras.`;
+    const response = await ai.models.generateContent({
+      model: modelToUse,
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { inlineData: { data: imageBase64, mimeType } }
+        ]
+      }]
+    });
 
-    // Lista de modelos a intentar en orden
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-pro-vision'];
-    let lastError = null;
+    const text = response.text.trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Respuesta sin JSON válido');
+    const jsonResult = JSON.parse(jsonMatch[0]);
 
-    for (const model of models) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: [{
-            role: 'user',
-            parts: [
-              { text: prompt },
-              { inlineData: { data: imageBase64, mimeType } }
-            ]
-          }]
-        });
-
-        const text = response.text.trim();
-
-        // Extraer JSON aunque venga envuelto en bloques de código markdown
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('Respuesta sin JSON válido');
-        const jsonResult = JSON.parse(jsonMatch[0]);
-
-        return {
-          success: true,
-          message: jsonResult.analysis || 'Análisis completado.',
-          suggestedRotation: jsonResult.suggestedRotation ?? 0,
-        };
-      } catch (err) {
-        lastError = err;
-        // Si es 404 (modelo no disponible) intentamos el siguiente
-        if (!err.message.includes('not found') && !err.message.includes('NOT_FOUND')) {
-          break; // Si es otro tipo de error, no seguimos intentando
-        }
-      }
-    }
-
-    return { success: false, error: `Error de IA: ${lastError?.message}` };
+    return {
+      success: true,
+      message: jsonResult.analysis || 'Análisis completado.',
+      suggestedRotation: jsonResult.suggestedRotation ?? 0,
+      modelUsed: modelToUse,
+    };
   } catch (error) {
     return { success: false, error: `Error de IA: ${error.message}` };
   }
