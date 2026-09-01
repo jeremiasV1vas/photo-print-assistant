@@ -67,36 +67,51 @@ ipcMain.handle('analyze-image', async (event, imageBase64, mimeType, targetSize)
     const { GoogleGenAI } = require('@google/genai');
     const ai = new GoogleGenAI({ apiKey });
 
-    const prompt = `Analiza esta fotografía para impresión. El tamaño objetivo solicitado es ${targetSize} cm. 
-Dime si la orientación de la foto original (horizontal/vertical) coincide bien con el tamaño objetivo o si sugieres rotar la foto para evitar cortes importantes. 
-Indica brevemente en un lenguaje super amigable si alguna cara o elemento principal se cortaría.
-Devuelve tu respuesta en formato JSON estrictamente válido, sin texto extra fuera de las llaves, con esta estructura:
-{
-  "suggestedRotation": 0, 
-  "analysis": "Breve mensaje explicando qué pasa con el encuadre (máximo 2 oraciones breves)."
-}`;
+    const prompt = `Analiza esta fotografía para impresión en tamaño ${targetSize} cm.
+Respondé en formato JSON con esta estructura exacta (sin texto extra):
+{"suggestedRotation": 0, "analysis": "Tu análisis breve y amigable aquí (máximo 2 oraciones)."}
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            { inlineData: { data: imageBase64, mimeType } }
-          ]
+En "analysis" indicá si la orientación de la foto es adecuada para ese tamaño, o si hay riesgo de cortar algo importante como caras.`;
+
+    // Lista de modelos a intentar en orden
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-pro-vision'];
+    let lastError = null;
+
+    for (const model of models) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: [{
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inlineData: { data: imageBase64, mimeType } }
+            ]
+          }]
+        });
+
+        const text = response.text.trim();
+
+        // Extraer JSON aunque venga envuelto en bloques de código markdown
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('Respuesta sin JSON válido');
+        const jsonResult = JSON.parse(jsonMatch[0]);
+
+        return {
+          success: true,
+          message: jsonResult.analysis || 'Análisis completado.',
+          suggestedRotation: jsonResult.suggestedRotation ?? 0,
+        };
+      } catch (err) {
+        lastError = err;
+        // Si es 404 (modelo no disponible) intentamos el siguiente
+        if (!err.message.includes('not found') && !err.message.includes('NOT_FOUND')) {
+          break; // Si es otro tipo de error, no seguimos intentando
         }
-      ],
-      config: { responseMimeType: "application/json" }
-    });
+      }
+    }
 
-    const jsonResult = JSON.parse(response.text);
-
-    return {
-      success: true,
-      message: jsonResult.analysis,
-      suggestedRotation: jsonResult.suggestedRotation,
-    };
+    return { success: false, error: `Error de IA: ${lastError?.message}` };
   } catch (error) {
     return { success: false, error: `Error de IA: ${error.message}` };
   }
