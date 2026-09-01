@@ -57,7 +57,7 @@ ipcMain.handle('ping', () => {
   return 'pong from electron main process!';
 });
 
-ipcMain.handle('analyze-image', async (event, imagePath, targetSize) => {
+ipcMain.handle('analyze-image', async (event, imageBase64, mimeType, targetSize) => {
   try {
     const apiKey = process.env.AI_API_KEY;
     if (!apiKey || apiKey === 'your_key_here') {
@@ -67,10 +67,6 @@ ipcMain.handle('analyze-image', async (event, imagePath, targetSize) => {
     const { GoogleGenAI } = require('@google/genai');
     const ai = new GoogleGenAI({ apiKey });
 
-    // Leer la imagen en Base64
-    const imageBase64 = fs.readFileSync(imagePath).toString('base64');
-    const mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-    
     const prompt = `Analiza esta fotografía para impresión. El tamaño objetivo solicitado es ${targetSize} cm. 
 Dime si la orientación de la foto original (horizontal/vertical) coincide bien con el tamaño objetivo o si sugieres rotar la foto para evitar cortes importantes. 
 Indica brevemente en un lenguaje super amigable si alguna cara o elemento principal se cortaría.
@@ -87,22 +83,14 @@ Devuelve tu respuesta en formato JSON estrictamente válido, sin texto extra fue
           role: 'user',
           parts: [
             { text: prompt },
-            {
-              inlineData: {
-                data: imageBase64,
-                mimeType
-              }
-            }
+            { inlineData: { data: imageBase64, mimeType } }
           ]
         }
       ],
-      config: {
-        responseMimeType: "application/json"
-      }
+      config: { responseMimeType: "application/json" }
     });
 
-    const resultText = response.text;
-    const jsonResult = JSON.parse(resultText);
+    const jsonResult = JSON.parse(response.text);
 
     return {
       success: true,
