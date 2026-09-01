@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { GoogleGenAI } = require('@google/genai');
+const fs = require('fs');
 
 // Cargar variables de entorno desde .env si existe
 try {
@@ -53,24 +53,63 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// Prueba de conexión
 ipcMain.handle('ping', () => {
   return 'pong from electron main process!';
 });
 
-// Lógica inicial para llamar a Gemini
 ipcMain.handle('analyze-image', async (event, imagePath, targetSize) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.AI_API_KEY });
-    // Aquí implementaremos la llamada a Gemini para sugerir recortes / rotaciones.
-    // Simulación por ahora:
+    const apiKey = process.env.AI_API_KEY;
+    if (!apiKey || apiKey === 'your_key_here') {
+      return { success: false, error: "Falta configurar tu AI_API_KEY en el archivo .env." };
+    }
+
+    const { GoogleGenAI } = require('@google/genai');
+    const ai = new GoogleGenAI({ apiKey });
+
+    // Leer la imagen en Base64
+    const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+    const mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    
+    const prompt = `Analiza esta fotografía para impresión. El tamaño objetivo solicitado es ${targetSize} cm. 
+Dime si la orientación de la foto original (horizontal/vertical) coincide bien con el tamaño objetivo o si sugieres rotar la foto para evitar cortes importantes. 
+Indica brevemente en un lenguaje super amigable si alguna cara o elemento principal se cortaría.
+Devuelve tu respuesta en formato JSON estrictamente válido, sin texto extra fuera de las llaves, con esta estructura:
+{
+  "suggestedRotation": 0, 
+  "analysis": "Breve mensaje explicando qué pasa con el encuadre (máximo 2 oraciones breves)."
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                data: imageBase64,
+                mimeType
+              }
+            }
+          ]
+        }
+      ],
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const resultText = response.text;
+    const jsonResult = JSON.parse(resultText);
+
     return {
       success: true,
-      message: `Simulando análisis para tamaño ${targetSize}`,
-      suggestedRotation: 0,
-      crop: { x: 0, y: 0, width: 100, height: 100 }
+      message: jsonResult.analysis,
+      suggestedRotation: jsonResult.suggestedRotation,
     };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: `Error de IA: ${error.message}` };
   }
 });

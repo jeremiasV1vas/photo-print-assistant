@@ -12,6 +12,18 @@ function PhotoCard({ photo, onUpdate }) {
     setAiResult(null); // Reset AI result when size changes
   };
 
+  const handleCustomWidth = (e) => {
+    const w = parseFloat(e.target.value);
+    const h = w && photo.originalRatio ? (w / photo.originalRatio).toFixed(2) : '';
+    onUpdate(photo.id, { customWidth: e.target.value, customHeight: h });
+  };
+
+  const handleCustomHeight = (e) => {
+    const h = parseFloat(e.target.value);
+    const w = h && photo.originalRatio ? (h * photo.originalRatio).toFixed(2) : '';
+    onUpdate(photo.id, { customHeight: e.target.value, customWidth: w });
+  };
+
   const handleAnalyze = async () => {
     if (!window.electronAPI) {
       alert("La conexión con el sistema local no está disponible en este entorno.");
@@ -20,7 +32,11 @@ function PhotoCard({ photo, onUpdate }) {
     
     setIsAnalyzing(true);
     try {
-      const result = await window.electronAPI.analyzeImage(photo.path, photo.size);
+      const targetSize = photo.size === 'custom' 
+        ? `${photo.customWidth}x${photo.customHeight}`
+        : photo.size;
+        
+      const result = await window.electronAPI.analyzeImage(photo.path, targetSize);
       setAiResult(result);
     } catch (error) {
       console.error(error);
@@ -52,9 +68,9 @@ function PhotoCard({ photo, onUpdate }) {
 
         {photo.size === 'custom' && (
           <div className="custom-size-inputs">
-            <input type="number" placeholder="Ancho" onChange={e => onUpdate(photo.id, { customWidth: e.target.value })} />
-            <span>x</span>
-            <input type="number" placeholder="Alto" onChange={e => onUpdate(photo.id, { customHeight: e.target.value })} />
+            <input type="number" placeholder="Ancho" value={photo.customWidth} onChange={handleCustomWidth} min="0" step="0.1" />
+            <span title="Mantiene la proporción original">🔒</span>
+            <input type="number" placeholder="Alto" value={photo.customHeight} onChange={handleCustomHeight} min="0" step="0.1" />
             <span>cm</span>
           </div>
         )}
@@ -62,14 +78,14 @@ function PhotoCard({ photo, onUpdate }) {
         <button 
           className={`btn-ai ${isAnalyzing ? 'loading' : ''}`}
           onClick={handleAnalyze}
-          disabled={isAnalyzing}
+          disabled={isAnalyzing || (photo.size === 'custom' && (!photo.customWidth || !photo.customHeight))}
         >
           {isAnalyzing ? 'Analizando...' : '✨ Ajustar con IA'}
         </button>
 
-        {aiResult && aiResult.message && (
+        {aiResult && (
           <div className={`ai-feedback ${!aiResult.success ? 'error' : ''}`}>
-            {aiResult.message}
+            {aiResult.error || aiResult.message}
           </div>
         )}
       </div>
@@ -91,17 +107,31 @@ function App() {
     setIsDragging(false);
   };
 
-  const processFiles = (files) => {
+  const processFiles = async (files) => {
     const filesArray = Array.from(files).filter(file => 
       file.type.startsWith('image/')
     );
     
-    const newPhotos = filesArray.map(file => ({
-      id: Math.random().toString(36).substring(7),
-      name: file.name,
-      path: file.path,
-      url: URL.createObjectURL(file),
-      size: '10x15' // Default size
+    const newPhotos = await Promise.all(filesArray.map(async file => {
+      const url = URL.createObjectURL(file);
+      
+      // Obtener proporciones originales de la imagen
+      const dimensions = await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ ratio: img.naturalWidth / img.naturalHeight });
+        img.src = url;
+      });
+
+      return {
+        id: Math.random().toString(36).substring(7),
+        name: file.name,
+        path: file.path,
+        url,
+        size: '10x15', // Default size
+        customWidth: '',
+        customHeight: '',
+        originalRatio: dimensions.ratio
+      };
     }));
     
     setPhotos(prev => [...prev, ...newPhotos]);
