@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"cross-env BROWSER=none vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build && electron-builder",
