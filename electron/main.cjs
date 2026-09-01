@@ -77,7 +77,7 @@ Devuelve tu respuesta en formato JSON estrictamente válido, sin texto extra fue
 }`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       contents: [
         {
           role: 'user',
