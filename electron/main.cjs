@@ -245,7 +245,16 @@ ipcMain.handle('print-pages', async (event, { pages, paper, deviceName, silent =
     fs.writeFileSync(tempFilePath, htmlContent, 'utf-8');
 
     printWin = new BrowserWindow({
+      parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+      modal: Boolean(mainWindow && !mainWindow.isDestroyed()),
       show: false,
+      width: 460,
+      height: 260,
+      title: 'Preparando impresión...',
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      autoHideMenuBar: true,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -253,6 +262,9 @@ ipcMain.handle('print-pages', async (event, { pages, paper, deviceName, silent =
     });
 
     await printWin.loadFile(tempFilePath);
+    if (!printWin.isDestroyed()) {
+      printWin.show();
+    }
 
     const printOptions = {
       silent: Boolean(silent),
@@ -315,10 +327,11 @@ ipcMain.handle('print-pages', async (event, { pages, paper, deviceName, silent =
           if (failureReason === 'Failed to enumerate printers') {
             friendlyError = 'No se detectaron impresoras activas en el sistema operativo.';
           }
+          const isCancelled = failureReason === 'cancelled' || failureReason === 'Print job canceled';
           resolve({
             success: false,
-            cancelled: failureReason === 'cancelled',
-            error: friendlyError,
+            cancelled: isCancelled,
+            error: isCancelled ? 'Impresión cancelada' : friendlyError,
           });
         }
       });
