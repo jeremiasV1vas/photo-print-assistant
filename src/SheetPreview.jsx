@@ -58,48 +58,57 @@ export default function SheetPreview({
           </span>
         </div>
 
-        <div className="sheet-page-controls">
-          <button
-            className="btn-page-nav"
-            onClick={() => setCurrentPageIndex(prev => Math.max(0, prev - 1))}
-            disabled={activePageIndex === 0}
-            title="Ver hoja anterior"
-          >
-            ◀ Anterior
-          </button>
+        {(totalPages > 1 || manualPageAssignments) && (
+          <div className="sheet-page-controls">
+            {totalPages > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="btn-page-nav"
+                  onClick={() => setCurrentPageIndex(prev => Math.max(0, prev - 1))}
+                  disabled={activePageIndex === 0}
+                  title="Ver hoja anterior"
+                >
+                  ◀ Anterior
+                </button>
 
-          {/* Botones rápidos de página si hay más de 1 */}
-          <div className="page-pills">
-            {pages.map((_, idx) => (
+                <div className="page-pills">
+                  {pages.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={`page-pill ${idx === activePageIndex ? 'active' : ''}`}
+                      onClick={() => setCurrentPageIndex(idx)}
+                    >
+                      {idx + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-page-nav"
+                  onClick={() => setCurrentPageIndex(prev => Math.min(totalPages - 1, prev + 1))}
+                  disabled={activePageIndex >= totalPages - 1}
+                  title="Ver hoja siguiente"
+                >
+                  Siguiente ▶
+                </button>
+              </>
+            )}
+
+            {manualPageAssignments && (
               <button
-                key={idx}
-                className={`page-pill ${idx === activePageIndex ? 'active' : ''}`}
-                onClick={() => setCurrentPageIndex(idx)}
+                type="button"
+                className="btn-auto-layout"
+                onClick={onResetLayout}
+                title="Restablecer a la distribución automática óptima"
               >
-                {idx + 1}
+                ⚡ Reacomodar
               </button>
-            ))}
+            )}
           </div>
-
-          <button
-            className="btn-page-nav"
-            onClick={() => setCurrentPageIndex(prev => Math.min(totalPages - 1, prev + 1))}
-            disabled={activePageIndex >= totalPages - 1}
-            title="Ver hoja siguiente"
-          >
-            Siguiente ▶
-          </button>
-
-          {manualPageAssignments && (
-            <button
-              className="btn-auto-layout"
-              onClick={onResetLayout}
-              title="Restablecer a la distribución automática óptima"
-            >
-              ⚡ Reacomodar automático
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Visor de la Hoja (Proporción exacta A4 o Carta) */}

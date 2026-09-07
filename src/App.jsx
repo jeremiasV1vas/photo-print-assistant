@@ -3,7 +3,14 @@ import './index.css';
 import { generatePDF, layoutPhotos } from './pdfGenerator.js';
 import SheetPreview from './SheetPreview.jsx';
 
-const STANDARD_SIZES = ['9x13', '10x15', '13x18', '15x21', '20x30'];
+const PRESET_SIZES = [
+  { label: '10 × 15', w: 10, h: 15 },
+  { label: '13 × 18', w: 13, h: 18 },
+  { label: '15 × 21', w: 15, h: 21 },
+  { label: '9 × 13', w: 9, h: 13 },
+  { label: '20 × 30', w: 20, h: 30 },
+];
+
 const PAPER_OPTIONS = ['A4', 'Carta'];
 
 // ─────────────────────────────────────────
@@ -13,25 +20,44 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState(null);
 
-  const handleSizeChange = (e) => {
-    onUpdate(photo.id, { size: e.target.value });
+  const currentW = parseFloat(photo.widthCM) || 10;
+  const currentH = parseFloat(photo.heightCM) || 15;
+  const currentRotation = photo.rotation || 0;
+  const isRatioLocked = photo.isRatioLocked ?? false;
+
+  const handleWidthChange = (e) => {
+    const val = e.target.value;
+    const num = parseFloat(val);
+    let newH = photo.heightCM;
+    if (isRatioLocked && num > 0 && photo.originalRatio) {
+      newH = (num / photo.originalRatio).toFixed(1);
+    }
+    onUpdate(photo.id, { widthCM: val, heightCM: newH });
     setAiResult(null);
   };
 
-  const handleCustomWidth = (e) => {
-    const w = parseFloat(e.target.value);
-    const h = w && photo.originalRatio ? (w / photo.originalRatio).toFixed(2) : '';
-    onUpdate(photo.id, { customWidth: e.target.value, customHeight: h });
+  const handleHeightChange = (e) => {
+    const val = e.target.value;
+    const num = parseFloat(val);
+    let newW = photo.widthCM;
+    if (isRatioLocked && num > 0 && photo.originalRatio) {
+      newW = (num * photo.originalRatio).toFixed(1);
+    }
+    onUpdate(photo.id, { heightCM: val, widthCM: newW });
+    setAiResult(null);
   };
 
-  const handleCustomHeight = (e) => {
-    const h = parseFloat(e.target.value);
-    const w = h && photo.originalRatio ? (h * photo.originalRatio).toFixed(2) : '';
-    onUpdate(photo.id, { customHeight: e.target.value, customWidth: w });
+  const handlePresetSelect = (preset) => {
+    onUpdate(photo.id, { widthCM: preset.w, heightCM: preset.h });
+    setAiResult(null);
+  };
+
+  const toggleRatioLock = () => {
+    onUpdate(photo.id, { isRatioLocked: !isRatioLocked });
   };
 
   const handleRotate = () => {
-    const nextRotation = ((photo.rotation || 0) + 90) % 360;
+    const nextRotation = (currentRotation + 90) % 360;
     onUpdate(photo.id, { rotation: nextRotation });
   };
 
@@ -42,11 +68,9 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
     }
     setIsAnalyzing(true);
     try {
-      const targetSize = photo.size === 'custom'
-        ? `${photo.customWidth}x${photo.customHeight}`
-        : photo.size;
+      const targetSize = `${currentW}x${currentH}`;
 
-      // Convertir la imagen a base64 en el renderer
+      // Convertir imagen a base64
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(',')[1]);
@@ -56,8 +80,6 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
 
       const result = await window.electronAPI.analyzeImage(base64, photo.mimeType, targetSize);
       setAiResult(result);
-
-      // Si la IA sugiere rotación y el usuario no la rotó, podemos ofrecer aplicarla
     } catch (error) {
       setAiResult({ success: false, error: error.message });
     } finally {
@@ -66,12 +88,10 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
   };
 
   const applyAiRotation = () => {
-    if (aiResult?.suggestedRotation) {
+    if (aiResult?.suggestedRotation !== undefined) {
       onUpdate(photo.id, { rotation: aiResult.suggestedRotation });
     }
   };
-
-  const currentRotation = photo.rotation || 0;
 
   return (
     <div className="photo-card">
@@ -89,61 +109,96 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
       </div>
 
       <div className="photo-info">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="photo-title-row">
           <span className="photo-name" title={photo.name}>{photo.name}</span>
           <button
             type="button"
             className="card-rotate-btn"
             onClick={handleRotate}
-            title="Girar 90 grados"
+            title="Girar foto 90 grados"
           >
             ↻ {currentRotation !== 0 ? `${currentRotation}°` : 'Girar'}
           </button>
         </div>
 
-        <div className="photo-controls">
-          <label>Tamaño:</label>
-          <select value={photo.size} onChange={handleSizeChange} className="size-select">
-            {STANDARD_SIZES.map(s => <option key={s} value={s}>{s} cm</option>)}
-            <option value="custom">Personalizado...</option>
-          </select>
+        {/* Sección de medidas personalizada siempre visible y prioritaria */}
+        <div className="size-section">
+          <div className="size-inputs-row">
+            <div className="size-input-group">
+              <label>Ancho (cm):</label>
+              <input
+                type="number"
+                value={photo.widthCM}
+                onChange={handleWidthChange}
+                min="1"
+                step="0.5"
+                placeholder="10"
+              />
+            </div>
+
+            <button
+              type="button"
+              className={`btn-ratio-lock ${isRatioLocked ? 'locked' : 'unlocked'}`}
+              onClick={toggleRatioLock}
+              title={isRatioLocked ? "Proporción bloqueada (clic para desbloquear)" : "Proporción libre (clic para bloquear)"}
+            >
+              {isRatioLocked ? '🔒' : '🔓'}
+            </button>
+
+            <div className="size-input-group">
+              <label>Alto (cm):</label>
+              <input
+                type="number"
+                value={photo.heightCM}
+                onChange={handleHeightChange}
+                min="1"
+                step="0.5"
+                placeholder="15"
+              />
+            </div>
+          </div>
+
+          {/* Botones de tamaños estándar sugeridos para rellenar con un clic */}
+          <div className="preset-buttons-container">
+            <span className="preset-label">O elegí un tamaño rápido:</span>
+            <div className="preset-buttons">
+              {PRESET_SIZES.map(p => {
+                const isSelected = Math.abs(currentW - p.w) < 0.1 && Math.abs(currentH - p.h) < 0.1;
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    className={`btn-preset-size ${isSelected ? 'active' : ''}`}
+                    onClick={() => handlePresetSelect(p)}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        {photo.size === 'custom' && (
-          <div className="custom-size-inputs">
-            <input type="number" placeholder="Ancho" value={photo.customWidth} onChange={handleCustomWidth} min="0" step="0.1" />
-            <span title="Proporción original bloqueada">🔒</span>
-            <input type="number" placeholder="Alto" value={photo.customHeight} onChange={handleCustomHeight} min="0" step="0.1" />
-            <span>cm</span>
-          </div>
-        )}
-
+        {/* Botón de Asistente de IA */}
         <button
+          type="button"
           className={`btn-ai ${isAnalyzing ? 'loading' : ''}`}
           onClick={handleAnalyze}
-          disabled={isAnalyzing || (photo.size === 'custom' && (!photo.customWidth || !photo.customHeight))}
+          disabled={isAnalyzing || !currentW || !currentH}
         >
-          {isAnalyzing ? 'Analizando...' : '✨ Ajustar con IA'}
+          {isAnalyzing ? 'Analizando con IA...' : '✨ Ajustar con IA'}
         </button>
 
         {aiResult && (
           <div className={`ai-feedback ${!aiResult.success ? 'error' : ''}`}>
             <div>{aiResult.error || aiResult.message}</div>
-            {aiResult.success && aiResult.suggestedRotation && aiResult.suggestedRotation !== currentRotation && (
+            {aiResult.success && aiResult.suggestedRotation !== undefined && aiResult.suggestedRotation !== currentRotation && (
               <button
-                style={{
-                  marginTop: '0.4rem',
-                  padding: '3px 8px',
-                  fontSize: '0.75rem',
-                  background: '#059669',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
+                type="button"
+                className="btn-apply-ai"
                 onClick={applyAiRotation}
               >
-                Aplicar giro de {aiResult.suggestedRotation}°
+                Girar {aiResult.suggestedRotation}° como sugiere la IA
               </button>
             )}
           </div>
@@ -162,7 +217,6 @@ function App() {
   const [paperSize, setPaperSize] = useState('A4');
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfResult, setPdfResult] = useState(null);
-  const [activeTab, setActiveTab] = useState('photos'); // 'photos' | 'preview'
   const [manualPageAssignments, setManualPageAssignments] = useState(null);
 
   const handleDragOver = (e) => {
@@ -190,9 +244,9 @@ function App() {
         file,
         mimeType: file.type || 'image/jpeg',
         url,
-        size: '10x15',
-        customWidth: '',
-        customHeight: '',
+        widthCM: 10,
+        heightCM: 15,
+        isRatioLocked: false,
         originalRatio: dimensions.ratio,
         rotation: 0,
       };
@@ -229,7 +283,7 @@ function App() {
     setManualPageAssignments(null);
   };
 
-  // Cálculo del layout actual para conocer el total de hojas
+  // Cálculo del layout en tiempo real sincronizado
   const layout = useMemo(() => {
     return layoutPhotos(photos, paperSize, manualPageAssignments);
   }, [photos, paperSize, manualPageAssignments]);
@@ -237,10 +291,9 @@ function App() {
   const totalPages = Math.max(layout.pages.length, 1);
 
   const handleGeneratePDF = async () => {
-    const invalid = photos.filter(p => p.size === 'custom' && (!p.customWidth || !p.customHeight));
+    const invalid = photos.filter(p => !parseFloat(p.widthCM) || !parseFloat(p.heightCM));
     if (invalid.length > 0) {
-      alert(`Faltan medidas personalizadas en ${invalid.length} foto(s). Completalas antes de generar el PDF.`);
-      setActiveTab('photos');
+      alert(`Faltan medidas válidas en ${invalid.length} foto(s). Por favor revisá que tengan ancho y alto.`);
       return;
     }
     setIsGenerating(true);
@@ -286,113 +339,99 @@ function App() {
             </div>
           </div>
         ) : (
-          <div className="gallery">
-            {/* Barra de Pestañas / Pasos */}
-            <div className="app-tabs">
-              <button
-                className={`tab-btn ${activeTab === 'photos' ? 'active' : ''}`}
-                onClick={() => setActiveTab('photos')}
-              >
-                <span>🖼️ 1. Fotos y Medidas</span>
-                <span className="tab-badge">{photos.length}</span>
-              </button>
-              <button
-                className={`tab-btn ${activeTab === 'preview' ? 'active' : ''}`}
-                onClick={() => setActiveTab('preview')}
-              >
-                <span>📄 2. Vista Previa de Hojas</span>
-                <span className="tab-badge">{totalPages} {totalPages === 1 ? 'hoja' : 'hojas'}</span>
-              </button>
-            </div>
-
-            {/* Pestaña 1: Grilla de fotos */}
-            {activeTab === 'photos' && (
-              <>
-                <div className="gallery-header">
-                  <h2>Fotos cargadas ({photos.length})</h2>
-                  <div className="gallery-actions">
-                    <button
-                      className="btn-secondary"
-                      onClick={() => document.getElementById('file-upload-more').click()}
-                    >
-                      + Agregar más fotos
-                    </button>
-                    <input
-                      id="file-upload-more"
-                      type="file"
-                      multiple
-                      accept="image/png, image/jpeg, image/jpg"
-                      onChange={handleFileSelect}
-                      style={{ display: 'none' }}
-                    />
-                    <button
-                      className="btn-primary"
-                      onClick={() => setActiveTab('preview')}
-                    >
-                      Ver Hojas ({totalPages}) ➔
-                    </button>
-                  </div>
+          <div className="workspace-layout">
+            {/* COLUMNA IZQUIERDA: Fotos y configuración de medidas */}
+            <section className="photos-column">
+              <div className="column-header">
+                <h2>Fotos cargadas ({photos.length})</h2>
+                <div className="column-actions">
+                  <button
+                    className="btn-secondary"
+                    onClick={() => document.getElementById('file-upload-more').click()}
+                  >
+                    + Agregar más fotos
+                  </button>
+                  <input
+                    id="file-upload-more"
+                    type="file"
+                    multiple
+                    accept="image/png, image/jpeg, image/jpg"
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
                 </div>
-
-                <div className="photo-grid">
-                  {photos.map(photo => (
-                    <PhotoCard
-                      key={photo.id}
-                      photo={photo}
-                      onUpdate={updatePhoto}
-                      onRemove={removePhoto}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Pestaña 2: Visor de Hojas (SheetPreview) */}
-            {activeTab === 'preview' && (
-              <SheetPreview
-                photos={photos}
-                paperKey={paperSize}
-                onUpdatePhoto={updatePhoto}
-                manualPageAssignments={manualPageAssignments}
-                onUpdatePageAssignments={setManualPageAssignments}
-                onResetLayout={handleResetLayout}
-              />
-            )}
-
-            {/* Panel inferior de configuración de papel y generación de PDF */}
-            <div className="pdf-panel">
-              <div className="pdf-panel-row">
-                <label className="pdf-label">Tamaño de hoja:</label>
-                <div className="paper-buttons">
-                  {PAPER_OPTIONS.map(p => (
-                    <button
-                      key={p}
-                      className={`btn-paper ${paperSize === p ? 'active' : ''}`}
-                      onClick={() => setPaperSize(p)}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  id="generate-pdf-btn"
-                  className={`btn-generate ${isGenerating ? 'loading' : ''}`}
-                  onClick={handleGeneratePDF}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? '⏳ Generando PDF...' : `🖨️ Generar PDF (${totalPages} hoja${totalPages > 1 ? 's' : ''})`}
-                </button>
               </div>
 
-              {pdfResult && (
-                <div className={`pdf-result ${pdfResult.success ? '' : 'error'}`}>
-                  {pdfResult.success
-                    ? `✅ ¡Listo! Se generó el archivo PDF con ${pdfResult.pages} hoja${pdfResult.pages > 1 ? 's' : ''}. Ya podés imprimirlo.`
-                    : `❌ Error: ${pdfResult.error}`}
+              <div className="photo-grid-scroll">
+                {photos.map(photo => (
+                  <PhotoCard
+                    key={photo.id}
+                    photo={photo}
+                    onUpdate={updatePhoto}
+                    onRemove={removePhoto}
+                  />
+                ))}
+              </div>
+            </section>
+
+            {/* COLUMNA DERECHA: Vista previa en vivo de la Hoja y panel de impresión */}
+            <aside className="preview-column">
+              <div className="preview-sticky-wrapper">
+                <div className="preview-title-row">
+                  <h2>📄 Vista previa de la hoja</h2>
+                  <span className="live-badge">En vivo</span>
                 </div>
-              )}
-            </div>
+
+                {/* Visor de Hoja Real */}
+                <SheetPreview
+                  photos={photos}
+                  paperKey={paperSize}
+                  onUpdatePhoto={updatePhoto}
+                  manualPageAssignments={manualPageAssignments}
+                  onUpdatePageAssignments={setManualPageAssignments}
+                  onResetLayout={handleResetLayout}
+                />
+
+                {/* Panel inferior de impresión / PDF */}
+                <div className="pdf-panel">
+                  <div className="pdf-panel-row">
+                    <div className="paper-selector-block">
+                      <label className="pdf-label">Tamaño de hoja:</label>
+                      <div className="paper-buttons">
+                        {PAPER_OPTIONS.map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            className={`btn-paper ${paperSize === p ? 'active' : ''}`}
+                            onClick={() => setPaperSize(p)}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      id="generate-pdf-btn"
+                      type="button"
+                      className={`btn-generate ${isGenerating ? 'loading' : ''}`}
+                      onClick={handleGeneratePDF}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? '⏳ Generando PDF...' : `🖨️ Generar PDF (${totalPages} hoja${totalPages > 1 ? 's' : ''})`}
+                    </button>
+                  </div>
+
+                  {pdfResult && (
+                    <div className={`pdf-result ${pdfResult.success ? '' : 'error'}`}>
+                      {pdfResult.success
+                        ? `✅ ¡Listo! Se generó el PDF en ${pdfResult.pages} hoja${pdfResult.pages > 1 ? 's' : ''}. Ya podés imprimirlo.`
+                        : `❌ Error: ${pdfResult.error}`}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </aside>
           </div>
         )}
       </main>

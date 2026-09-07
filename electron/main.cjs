@@ -81,61 +81,58 @@ ipcMain.handle('analyze-image', async (event, imageBase64, mimeType, targetSize)
       return { success: false, error: "Falta configurar tu AI_API_KEY en el archivo .env." };
     }
 
-    // Auto-detectar el mejor modelo disponible para visión
-    let modelToUse = null;
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const allModels = (data.models || []).map(m => m.name.replace('models/', ''));
-
-      // Preferencia de modelos con soporte de visión
-      const preferred = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-2.0-pro-exp'];
-      for (const pref of preferred) {
-        if (allModels.some(m => m.includes(pref) || m === pref)) {
-          modelToUse = allModels.find(m => m.includes(pref) || m === pref);
-          break;
-        }
-      }
-      if (!modelToUse) modelToUse = allModels.find(m => m.includes('flash')) || allModels[0];
-    } catch {
-      modelToUse = 'gemini-2.0-flash'; // fallback
-    }
-
-    if (!modelToUse) {
-      return { success: false, error: 'No se encontró ningún modelo disponible con tu API key.' };
-    }
-
     const { GoogleGenAI } = require('@google/genai');
     const ai = new GoogleGenAI({ apiKey });
+
+    // Modelos modernos disponibles en orden de prioridad y estabilidad
+    const candidateModels = [
+      'gemini-flash-latest',
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+      'gemini-3.7-flash',
+      'gemini-3.1-flash-lite',
+      'gemini-2.5-pro',
+    ];
 
     const prompt = `Analiza esta fotografía para impresión en tamaño ${targetSize} cm.
 Respondé en formato JSON con esta estructura exacta (sin texto extra):
 {"suggestedRotation": 0, "analysis": "Tu análisis breve y amigable aquí (máximo 2 oraciones)."}
-En "analysis" indicá si la orientación es adecuada o si hay riesgo de cortar algo importante.`;
+En "analysis" indicá si la orientación es adecuada o si hay riesgo de cortar algo importante al encuadrar en ${targetSize} cm.`;
 
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: [{
-        role: 'user',
-        parts: [
-          { text: prompt },
-          { inlineData: { data: imageBase64, mimeType } }
-        ]
-      }]
-    });
+    let lastError = null;
 
-    const text = response.text.trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Respuesta sin JSON válido');
-    const jsonResult = JSON.parse(jsonMatch[0]);
+    for (const model of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: [{
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inlineData: { data: imageBase64, mimeType } }
+            ]
+          }]
+        });
 
-    return {
-      success: true,
-      message: jsonResult.analysis || 'Análisis completado.',
-      suggestedRotation: jsonResult.suggestedRotation ?? 0,
-      modelUsed: modelToUse,
-    };
+        const text = response.text.trim();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('Respuesta sin JSON válido');
+        const jsonResult = JSON.parse(jsonMatch[0]);
+
+        return {
+          success: true,
+          message: jsonResult.analysis || 'Análisis completado.',
+          suggestedRotation: jsonResult.suggestedRotation ?? 0,
+          modelUsed: model,
+        };
+      } catch (err) {
+        lastError = err;
+        // Si falló este modelo (por ej. deprecado o saturado temporalmente), probamos el siguiente
+        continue;
+      }
+    }
+
+    throw lastError || new Error('No se pudo conectar con ningún modelo de IA disponible.');
   } catch (error) {
     return { success: false, error: `Error de IA: ${error.message}` };
   }

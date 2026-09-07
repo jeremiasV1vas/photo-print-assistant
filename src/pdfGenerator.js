@@ -17,7 +17,10 @@ export function parseSizeMM(photo) {
   let w = 100;
   let h = 150;
 
-  if (photo.size === 'custom') {
+  if (photo.widthCM && photo.heightCM) {
+    w = (parseFloat(photo.widthCM) || 10) * 10;
+    h = (parseFloat(photo.heightCM) || 15) * 10;
+  } else if (photo.size === 'custom') {
     w = (parseFloat(photo.customWidth) || 10) * 10;
     h = (parseFloat(photo.customHeight) || 15) * 10;
   } else if (photo.size) {
