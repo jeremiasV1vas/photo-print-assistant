@@ -49,8 +49,8 @@ export default function SheetPreview({
         </div>
       )}
 
-      {/* Lista de todas las hojas visibles al mismo tiempo */}
-      <div className="sheets-stack">
+      {/* Grilla adaptativa para que todas las hojas se achiquen y entren sin scroll */}
+      <div className={`sheets-grid sheets-grid-${totalPages <= 4 ? totalPages : 'many'}`}>
         {pages.map((pageItems, pageIdx) => (
           <div key={pageIdx} className="sheet-card-wrapper">
             <div className="sheet-card-header">
@@ -83,7 +83,7 @@ export default function SheetPreview({
                 {pageItems.length === 0 ? (
                   <div className="sheet-empty-message">
                     <span>Esta hoja está vacía.</span>
-                    <p>Podés mover fotos aquí con el botón ▼ Bajar o ▲ Subir.</p>
+                    <p>Podés mover fotos aquí desde otra hoja.</p>
                   </div>
                 ) : (
                   pageItems.map((item) => {
@@ -147,7 +147,7 @@ export default function SheetPreview({
                               ↻ Girar
                             </button>
 
-                            {/* Mover entre hojas visibles */}
+                            {/* Mover entre hojas con botones compactos */}
                             {totalPages > 1 && (
                               <div className="sheet-move-buttons">
                                 {pageIdx > 0 && (
@@ -158,9 +158,9 @@ export default function SheetPreview({
                                       e.stopPropagation();
                                       handleMovePage(photo.id, pageIdx - 1);
                                     }}
-                                    title="Mover a la hoja anterior (arriba)"
+                                    title={`Mover a la hoja ${pageIdx}`}
                                   >
-                                    ▲ Subir
+                                    ◀ H{pageIdx}
                                   </button>
                                 )}
                                 {pageIdx < totalPages - 1 && (
@@ -171,9 +171,9 @@ export default function SheetPreview({
                                       e.stopPropagation();
                                       handleMovePage(photo.id, pageIdx + 1);
                                     }}
-                                    title="Mover a la hoja siguiente (abajo)"
+                                    title={`Mover a la hoja ${pageIdx + 2}`}
                                   >
-                                    ▼ Bajar
+                                    H{pageIdx + 2} ▶
                                   </button>
                                 )}
                               </div>
