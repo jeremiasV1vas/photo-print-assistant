@@ -23,9 +23,11 @@ Aplicación de escritorio diseñada para **librerías y centros de impresión**,
   - Botones para fijar todas las fotos a una medida estándar (`10 × 15`, `13 × 18`, etc.) manteniendo su proporción natural.
   - **Lado largo personalizado**: Campo para fijar la medida del lado más largo (ej. `15 cm`) de todas las fotos del lote a la vez.
 
-### 4. Generación de PDF e Impresión
-- Descarga directa de archivos PDF con resolución fotográfica (300 DPI equivalente).
-- Margen seguro imprimible de 4 mm preconfigurado para evitar cortes en bordes de impresora.
+### 4. Impresión Directa y Exportación en PDF (RF5)
+- **🖨️ Impresión directa con 1 clic**: Envía las páginas directamente a la impresora seleccionada en resolución fotográfica (300 DPI) respetando rotaciones y medidas exactas sin abrir visores externos.
+- **Selector inteligente de impresoras**: Detecta automáticamente las impresoras instaladas en el sistema operativo y selecciona por defecto la predeterminada.
+- **💾 Descarga de PDF**: Permite descargar el archivo PDF listo para imprimir en cualquier momento para guardarlo o enviarlo.
+- **Margen seguro de 4 mm**: Configurado para evitar cortes en bordes de impresoras de papelería y foto.
 
 ---
 

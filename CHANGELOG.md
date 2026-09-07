@@ -2,6 +2,15 @@
 
 Todos los cambios notables de este proyecto se documentan en este archivo.
 
+## [1.2.0] - 2026-09-07
+
+### Agregado
+- **Impresión directa desde la aplicación (RF5)**: Nuevo botón principal `🖨️ Imprimir directo` que envía el trabajo de impresión directamente a la impresora seleccionada en 300 DPI sin necesidad de buscar ni abrir archivos PDF en visores externos.
+- **Selector de impresoras del sistema**: Detección automática de impresoras instaladas mediante IPC nativo en Electron, con preselección de la impresora predeterminada.
+- **Ventana modal de preparación de impresión**: Renderizado en milímetros exactos (`@page`) vinculado de forma modal a la ventana principal para compatibilidad total con Wayland y Windows.
+- **Validaciones y mensajes amigables en español**: Avisos visuales si no hay impresoras detectadas (`⚠️ Sin impresoras detectadas`), confirmación de envío y tratamiento de cancelación sin cierres ni errores técnicos.
+- **Acción paralela "💾 Descargar PDF"**: Botón secundario para seguir contando con la opción de exportar el archivo al disco.
+
 ## [1.1.0] - 2026-09-07
 
 ### Agregado
