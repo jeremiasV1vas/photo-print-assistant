@@ -190,50 +190,77 @@ export function optimizeRotations(photos, paperKey = 'A4') {
 
 /**
  * Ajusta automáticamente el tamaño y orientación de todas las fotos
- * para que entren juntas en exactamente 1 sola hoja de papel.
+ * para que entren juntas en exactamente 1 sola hoja de papel con tamaños similares.
  */
 export function fitAllToOneSheet(photos, paperKey = 'A4') {
   if (!photos || photos.length === 0) return photos;
 
+  const paper = PAPER_SIZES[paperKey] || PAPER_SIZES.A4;
+  const usableW = paper.width - MARGIN * 2;
+  const usableH = paper.height - MARGIN * 2;
+
+  // Base de superficie idéntica para todas las fotos (100 cm2)
+  // Cada foto calcula baseW y baseH para tener exactamente la misma área visual:
+  const BASE_AREA = 100;
+  const normalizedPhotos = photos.map(p => {
+    const ratio = p.originalRatio || 1;
+    const baseW = Math.sqrt(BASE_AREA * ratio);
+    const baseH = Math.sqrt(BASE_AREA / ratio);
+    return { ...p, baseW, baseH };
+  });
+
+  // Probar diferentes estrategias de orientación conjunta
+  const strategies = [
+    // 1. Orientar para que todas queden apaisadas en la hoja
+    normalizedPhotos.map(p => ({ ...p, rotation: p.baseW >= p.baseH ? 0 : 90 })),
+    // 2. Orientar para que todas queden verticales en la hoja
+    normalizedPhotos.map(p => ({ ...p, rotation: p.baseW < p.baseH ? 0 : 90 })),
+    // 3. Orientación natural de cada foto
+    normalizedPhotos.map(p => ({ ...p, rotation: 0 })),
+    // 4. Orientación invertida de cada foto
+    normalizedPhotos.map(p => ({ ...p, rotation: 90 })),
+  ];
+
   let bestScaled = null;
   let bestScale = 0;
 
-  const variants = [
-    photos.map(p => ({ ...p })),
-    photos.map(p => ({ ...p, rotation: ((p.originalRatio || 1) >= 1 ? 90 : 0) })),
-    photos.map(p => ({ ...p, rotation: ((p.originalRatio || 1) >= 1 ? 0 : 90) })),
-    photos.map(p => ({ ...p, rotation: 90 })),
-    photos.map(p => ({ ...p, rotation: 0 })),
-  ];
-
-  for (const variant of variants) {
+  for (const variant of strategies) {
     let low = 0.05;
-    let high = 4.0;
+    let high = 5.0;
     let maxFit = 0;
 
     for (let iter = 0; iter < 24; iter++) {
       const mid = (low + high) / 2;
+
+      // Verificar que ninguna foto individual supere el área imprimible de la hoja
+      let fitsInSheetBounds = true;
       const test = variant.map(p => {
-        const ratio = p.originalRatio || 1;
-        const w = 10 * mid;
-        const h = (10 / ratio) * mid;
-        return { ...p, widthCM: w, heightCM: h };
+        const wCM = p.baseW * mid;
+        const hCM = p.baseH * mid;
+        const isRot = p.rotation === 90 || p.rotation === 270;
+        const widthOnSheetMM = (isRot ? hCM : wCM) * 10;
+        const heightOnSheetMM = (isRot ? wCM : hCM) * 10;
+
+        if (widthOnSheetMM > usableW + 0.5 || heightOnSheetMM > usableH + 0.5) {
+          fitsInSheetBounds = false;
+        }
+
+        return { ...p, widthCM: wCM, heightCM: hCM };
       });
 
-      if (layoutPhotos(test, paperKey).pages.length === 1) {
+      if (fitsInSheetBounds && layoutPhotos(test, paperKey).pages.length === 1) {
         maxFit = mid;
-        low = mid;
+        low = mid; // Intentar escala mayor
       } else {
-        high = mid;
+        high = mid; // Escala demasiado grande, reducir
       }
     }
 
     if (maxFit > bestScale) {
       bestScale = maxFit;
       bestScaled = variant.map(p => {
-        const ratio = p.originalRatio || 1;
-        const w = 10 * maxFit;
-        const h = (10 / ratio) * maxFit;
+        const w = p.baseW * maxFit;
+        const h = p.baseH * maxFit;
         return {
           ...p,
           widthCM: (Math.floor(w * 10) / 10).toFixed(1),
