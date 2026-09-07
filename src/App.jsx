@@ -1,6 +1,12 @@
 import { useState, useMemo } from 'react';
 import './index.css';
-import { generatePDF, layoutPhotos } from './pdfGenerator.js';
+import {
+  generatePDF,
+  layoutPhotos,
+  optimizeRotations,
+  fitAllToOneSheet,
+  applyBatchSize,
+} from './pdfGenerator.js';
 import SheetPreview from './SheetPreview.jsx';
 
 const PRESET_SIZES = [
@@ -17,9 +23,6 @@ const PAPER_OPTIONS = ['A4', 'Carta'];
 // Componente de tarjeta de foto individual
 // ─────────────────────────────────────────
 function PhotoCard({ photo, onUpdate, onRemove }) {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiResult, setAiResult] = useState(null);
-
   const currentW = parseFloat(photo.widthCM) || 10;
   const currentH = parseFloat(photo.heightCM) || 15;
   const currentRotation = photo.rotation || 0;
@@ -33,7 +36,6 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
       newH = (num / photo.originalRatio).toFixed(1);
     }
     onUpdate(photo.id, { widthCM: val, heightCM: newH });
-    setAiResult(null);
   };
 
   const handleHeightChange = (e) => {
@@ -44,12 +46,10 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
       newW = (num * photo.originalRatio).toFixed(1);
     }
     onUpdate(photo.id, { heightCM: val, widthCM: newW });
-    setAiResult(null);
   };
 
   const handlePresetSelect = (preset) => {
     onUpdate(photo.id, { widthCM: preset.w, heightCM: preset.h });
-    setAiResult(null);
   };
 
   const toggleRatioLock = () => {
@@ -59,38 +59,6 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
   const handleRotate = () => {
     const nextRotation = (currentRotation + 90) % 360;
     onUpdate(photo.id, { rotation: nextRotation });
-  };
-
-  const handleAnalyze = async () => {
-    if (!window.electronAPI) {
-      alert("La conexión con el sistema local no está disponible en este entorno.");
-      return;
-    }
-    setIsAnalyzing(true);
-    try {
-      const targetSize = `${currentW}x${currentH}`;
-
-      // Convertir imagen a base64
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(photo.file);
-      });
-
-      const result = await window.electronAPI.analyzeImage(base64, photo.mimeType, targetSize);
-      setAiResult(result);
-    } catch (error) {
-      setAiResult({ success: false, error: error.message });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const applyAiRotation = () => {
-    if (aiResult?.suggestedRotation !== undefined) {
-      onUpdate(photo.id, { rotation: aiResult.suggestedRotation });
-    }
   };
 
   return (
@@ -104,8 +72,14 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
             transition: 'transform 0.3s ease',
           }}
         />
-        {aiResult && aiResult.success && <div className="ai-badge">✓ IA</div>}
-        <button className="btn-remove" onClick={() => onRemove(photo.id)} title="Quitar foto">✕</button>
+        <button
+          type="button"
+          className="btn-remove"
+          onClick={() => onRemove(photo.id)}
+          title="Quitar foto"
+        >
+          ✕
+        </button>
       </div>
 
       <div className="photo-info">
@@ -121,7 +95,7 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
           </button>
         </div>
 
-        {/* Sección de medidas personalizada siempre visible y prioritaria */}
+        {/* Sección de medidas personalizadas siempre visible y prioritaria */}
         <div className="size-section">
           <div className="size-inputs-row">
             <div className="size-input-group">
@@ -178,31 +152,6 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
             </div>
           </div>
         </div>
-
-        {/* Botón de Asistente de IA */}
-        <button
-          type="button"
-          className={`btn-ai ${isAnalyzing ? 'loading' : ''}`}
-          onClick={handleAnalyze}
-          disabled={isAnalyzing || !currentW || !currentH}
-        >
-          {isAnalyzing ? 'Analizando con IA...' : '✨ Ajustar con IA'}
-        </button>
-
-        {aiResult && (
-          <div className={`ai-feedback ${!aiResult.success ? 'error' : ''}`}>
-            <div>{aiResult.error || aiResult.message}</div>
-            {aiResult.success && aiResult.suggestedRotation !== undefined && aiResult.suggestedRotation !== currentRotation && (
-              <button
-                type="button"
-                className="btn-apply-ai"
-                onClick={applyAiRotation}
-              >
-                Girar {aiResult.suggestedRotation}° como sugiere la IA
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -283,6 +232,27 @@ function App() {
     setManualPageAssignments(null);
   };
 
+  // Acción masiva: que todo entre en 1 sola hoja
+  const handleFitAllToOneSheet = () => {
+    const updated = fitAllToOneSheet(photos, paperSize);
+    setPhotos(updated);
+    setManualPageAssignments(null);
+  };
+
+  // Acción masiva: optimizar orientación para ahorrar hojas
+  const handleOptimizeRotations = () => {
+    const updated = optimizeRotations(photos, paperSize);
+    setPhotos(updated);
+    setManualPageAssignments(null);
+  };
+
+  // Acción masiva: aplicar tamaño A x B a todas las fotos
+  const handleApplyBatchSize = (w, h) => {
+    const updated = applyBatchSize(photos, w, h);
+    setPhotos(updated);
+    setManualPageAssignments(null);
+  };
+
   // Cálculo del layout en tiempo real sincronizado
   const layout = useMemo(() => {
     return layoutPhotos(photos, paperSize, manualPageAssignments);
@@ -346,6 +316,7 @@ function App() {
                 <h2>Fotos cargadas ({photos.length})</h2>
                 <div className="column-actions">
                   <button
+                    type="button"
                     className="btn-secondary"
                     onClick={() => document.getElementById('file-upload-more').click()}
                   >
@@ -362,6 +333,45 @@ function App() {
                 </div>
               </div>
 
+              {/* Barra de optimizaciones rápidas para todas las fotos */}
+              <div className="batch-toolbar">
+                <div className="batch-actions-row">
+                  <button
+                    type="button"
+                    className="btn-fit-one-sheet"
+                    onClick={handleFitAllToOneSheet}
+                    title="Calcula el tamaño y giro para que todas las fotos entren juntas en 1 sola hoja"
+                  >
+                    ⚡ Que todo entre en 1 hoja
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-optimize-rotations"
+                    onClick={handleOptimizeRotations}
+                    title="Gira automáticamente las fotos para ahorrar la mayor cantidad de hojas"
+                  >
+                    🔄 Girar para ahorrar hojas
+                  </button>
+                </div>
+
+                <div className="batch-size-row">
+                  <span className="batch-size-label">📐 Todas en:</span>
+                  <div className="batch-preset-buttons">
+                    {PRESET_SIZES.map(p => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        className="btn-batch-preset"
+                        onClick={() => handleApplyBatchSize(p.w, p.h)}
+                        title={`Cambiar todas las fotos a ${p.label} cm manteniendo su proporción`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="photo-grid-scroll">
                 {photos.map(photo => (
                   <PhotoCard
@@ -374,14 +384,14 @@ function App() {
               </div>
             </section>
 
-            {/* COLUMNA DERECHA: Vista previa en vivo de la Hoja y panel de impresión */}
+            {/* COLUMNA DERECHA: Vista previa en vivo de las Hojas y panel de impresión */}
             <aside className="preview-column">
               <div className="preview-sticky-wrapper">
                 <div className="preview-title-row">
                   <h2>📄 Hojas para imprimir ({totalPages})</h2>
                 </div>
 
-                {/* Visor de Hoja Real */}
+                {/* Visor con todas las hojas al mismo tiempo */}
                 <SheetPreview
                   photos={photos}
                   paperKey={paperSize}

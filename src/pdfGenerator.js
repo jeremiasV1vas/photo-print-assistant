@@ -147,6 +147,147 @@ export function layoutPhotos(photos, paperKey = 'A4', manualPageAssignments = nu
 }
 
 /**
+ * Optimiza la orientación (rotación 0° o 90°) de las fotos para usar la menor cantidad de hojas posible.
+ */
+export function optimizeRotations(photos, paperKey = 'A4') {
+  if (!photos || photos.length === 0) return photos;
+
+  let bestPhotos = photos.map(p => ({ ...p }));
+  let bestPages = layoutPhotos(bestPhotos, paperKey).pages.length;
+
+  // Probar variantes globales
+  const globalVariants = [
+    photos.map(p => ({ ...p, rotation: 0 })),
+    photos.map(p => ({ ...p, rotation: 90 })),
+    photos.map(p => ({ ...p, rotation: (p.originalRatio || 1) >= 1 ? 90 : 0 })),
+    photos.map(p => ({ ...p, rotation: (p.originalRatio || 1) >= 1 ? 0 : 90 })),
+  ];
+
+  for (const variant of globalVariants) {
+    const pagesCount = layoutPhotos(variant, paperKey).pages.length;
+    if (pagesCount < bestPages) {
+      bestPages = pagesCount;
+      bestPhotos = variant;
+    }
+  }
+
+  // Ajuste individual incremental
+  for (let i = 0; i < bestPhotos.length; i++) {
+    const origRot = bestPhotos[i].rotation || 0;
+    const flippedRot = (origRot + 90) % 360;
+
+    const testPhotos = bestPhotos.map((p, idx) => idx === i ? { ...p, rotation: flippedRot } : p);
+    const testPages = layoutPhotos(testPhotos, paperKey).pages.length;
+
+    if (testPages < bestPages) {
+      bestPages = testPages;
+      bestPhotos = testPhotos;
+    }
+  }
+
+  return bestPhotos;
+}
+
+/**
+ * Ajusta automáticamente el tamaño y orientación de todas las fotos
+ * para que entren juntas en exactamente 1 sola hoja de papel.
+ */
+export function fitAllToOneSheet(photos, paperKey = 'A4') {
+  if (!photos || photos.length === 0) return photos;
+
+  let bestScaled = null;
+  let bestScale = 0;
+
+  const variants = [
+    photos.map(p => ({ ...p })),
+    photos.map(p => ({ ...p, rotation: ((p.originalRatio || 1) >= 1 ? 90 : 0) })),
+    photos.map(p => ({ ...p, rotation: ((p.originalRatio || 1) >= 1 ? 0 : 90) })),
+    photos.map(p => ({ ...p, rotation: 90 })),
+    photos.map(p => ({ ...p, rotation: 0 })),
+  ];
+
+  for (const variant of variants) {
+    let low = 0.05;
+    let high = 4.0;
+    let maxFit = 0;
+
+    for (let iter = 0; iter < 24; iter++) {
+      const mid = (low + high) / 2;
+      const test = variant.map(p => {
+        const ratio = p.originalRatio || 1;
+        const w = 10 * mid;
+        const h = (10 / ratio) * mid;
+        return { ...p, widthCM: w, heightCM: h };
+      });
+
+      if (layoutPhotos(test, paperKey).pages.length === 1) {
+        maxFit = mid;
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    if (maxFit > bestScale) {
+      bestScale = maxFit;
+      bestScaled = variant.map(p => {
+        const ratio = p.originalRatio || 1;
+        const w = 10 * maxFit;
+        const h = (10 / ratio) * maxFit;
+        return {
+          ...p,
+          widthCM: (Math.floor(w * 10) / 10).toFixed(1),
+          heightCM: (Math.floor(h * 10) / 10).toFixed(1),
+          isRatioLocked: true,
+        };
+      });
+    }
+  }
+
+  return bestScaled || photos;
+}
+
+/**
+ * Aplica un tamaño estándar masivo a todas las fotos (ej. 10x15, 13x18)
+ * adaptándose a la orientación de cada foto y manteniendo su proporción.
+ */
+export function applyBatchSize(photos, targetW, targetH) {
+  const minDim = Math.min(targetW, targetH);
+  const maxDim = Math.max(targetW, targetH);
+
+  return photos.map(p => {
+    const ratio = p.originalRatio || 1;
+    let finalW, finalH;
+
+    if (ratio >= 1) {
+      // Foto apaisada / horizontal: caja maxDim x minDim
+      finalW = maxDim;
+      finalH = maxDim / ratio;
+      if (finalH > minDim) {
+        finalH = minDim;
+        finalW = minDim * ratio;
+      }
+    } else {
+      // Foto vertical: caja minDim x maxDim
+      finalH = maxDim;
+      finalW = maxDim * ratio;
+      if (finalW > minDim) {
+        finalW = minDim;
+        finalH = minDim / ratio;
+      }
+    }
+
+    return {
+      ...p,
+      widthCM: (Math.round(finalW * 10) / 10).toFixed(1),
+      heightCM: (Math.round(finalH * 10) / 10).toFixed(1),
+      isRatioLocked: true,
+      rotation: 0,
+    };
+  });
+}
+
+/**
  * Carga una imagen desde una URL y devuelve un HTMLImageElement resuelto
  */
 export function loadImage(url) {
