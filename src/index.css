@@ -481,3 +481,369 @@ body {
   background: #ffe4e6;
   border-color: #fecdd3;
 }
+
+/* ─────────────────────────────────────────
+   Pestañas de Navegación (Tabs)
+   ───────────────────────────────────────── */
+.app-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1.8rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: var(--glass-bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(10px);
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.tab-btn.active {
+  background: white;
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.25);
+}
+
+.tab-badge {
+  background: #e0e7ff;
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tab-btn.active .tab-badge {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Botón girar en tarjeta de foto */
+.card-rotate-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.card-rotate-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+/* ─────────────────────────────────────────
+   Sheet Preview (Visor de Hoja / Canvas)
+   ───────────────────────────────────────── */
+.sheet-preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.sheet-preview-header {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+}
+
+.sheet-page-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sheet-badge {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  padding: 0.45rem 1rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+.sheet-summary-text {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.sheet-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.btn-page-nav {
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-page-nav:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.btn-page-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-pills {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.page-pill {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: white;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.page-pill.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.page-pill:hover:not(.active) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn-auto-layout {
+  padding: 0.5rem 0.9rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-auto-layout:hover {
+  background: #fde68a;
+  transform: translateY(-1px);
+}
+
+/* Escenario y Hoja de Papel */
+.sheet-stage {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0;
+}
+
+.sheet-paper {
+  position: relative;
+  width: 100%;
+  max-width: 650px;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+              0 20px 40px -4px rgba(0, 0, 0, 0.18),
+              0 0 0 1px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Margen imprimible (guía punteada sutil) */
+.sheet-margin-guide {
+  position: absolute;
+  border: 1px dashed rgba(99, 102, 241, 0.35);
+  pointer-events: none;
+  z-index: 5;
+  border-radius: 2px;
+}
+
+/* Elemento Foto en la Hoja */
+.sheet-photo-item {
+  position: absolute;
+  box-sizing: border-box;
+  background: #f8fafc;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+
+.sheet-photo-item:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  z-index: 20;
+}
+
+.sheet-img-cropper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Overlay interactivo en la foto */
+.sheet-photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.1) 40%, rgba(0, 0, 0, 0.65) 100%);
+  opacity: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.sheet-photo-item:hover .sheet-photo-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sheet-photo-size-badge {
+  align-self: flex-start;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.sheet-photo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.btn-sheet-rotate {
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  color: #1e293b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-sheet-rotate:hover {
+  background: white;
+  transform: scale(1.03);
+}
+
+.sheet-move-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-sheet-move {
+  flex: 1;
+  background: rgba(99, 102, 241, 0.9);
+  border: none;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+
+.btn-sheet-move:hover {
+  background: var(--primary-color);
+}
+
+.sheet-empty-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.sheet-empty-message p {
+  font-size: 0.9rem;
+  margin-top: 0.3rem;
+  opacity: 0.8;
+}
+
+.sheet-preview-footer {
+  margin-top: 1.2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}

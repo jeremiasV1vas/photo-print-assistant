@@ -1,11 +1,10 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('fs');
 
 // Cargar variables de entorno desde .env si existe
 try {
   require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-} catch (e) {
+} catch {
   // Ignorar en producción si dotenv no está disponible o el archivo no existe
 }
 
@@ -99,7 +98,7 @@ ipcMain.handle('analyze-image', async (event, imageBase64, mimeType, targetSize)
         }
       }
       if (!modelToUse) modelToUse = allModels.find(m => m.includes('flash')) || allModels[0];
-    } catch (_) {
+    } catch {
       modelToUse = 'gemini-2.0-flash'; // fallback
     }
 
