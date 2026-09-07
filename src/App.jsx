@@ -6,6 +6,7 @@ import {
   optimizeRotations,
   fitAllToOneSheet,
   applyBatchSize,
+  applyLongSideToAll,
 } from './pdfGenerator.js';
 import SheetPreview from './SheetPreview.jsx';
 
@@ -167,6 +168,7 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfResult, setPdfResult] = useState(null);
   const [manualPageAssignments, setManualPageAssignments] = useState(null);
+  const [customLongSide, setCustomLongSide] = useState('15');
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -249,6 +251,16 @@ function App() {
   // Acción masiva: aplicar tamaño A x B a todas las fotos
   const handleApplyBatchSize = (w, h) => {
     const updated = applyBatchSize(photos, w, h);
+    setPhotos(updated);
+    setManualPageAssignments(null);
+  };
+
+  // Acción masiva: aplicar medida al lado largo de todas las fotos
+  const handleApplyLongSide = (e) => {
+    e?.preventDefault();
+    const val = parseFloat(customLongSide);
+    if (!val || val <= 0) return;
+    const updated = applyLongSideToAll(photos, val);
     setPhotos(updated);
     setManualPageAssignments(null);
   };
@@ -369,6 +381,34 @@ function App() {
                       </button>
                     ))}
                   </div>
+
+                  <div className="batch-divider" />
+
+                  <form className="batch-long-side-form" onSubmit={handleApplyLongSide}>
+                    <label htmlFor="custom-long-side" className="batch-size-label">
+                      Lado largo:
+                    </label>
+                    <div className="batch-long-side-input-wrapper">
+                      <input
+                        id="custom-long-side"
+                        type="number"
+                        min="1"
+                        step="0.5"
+                        placeholder="15"
+                        value={customLongSide}
+                        onChange={(e) => setCustomLongSide(e.target.value)}
+                        className="input-long-side"
+                      />
+                      <span className="unit-label">cm</span>
+                    </div>
+                    <button
+                      type="submit"
+                      className="btn-apply-long-side"
+                      title="Aplicar esta medida al lado más largo de todas las fotos manteniendo su proporción"
+                    >
+                      Aplicar
+                    </button>
+                  </form>
                 </div>
               </div>
 

@@ -288,6 +288,38 @@ export function applyBatchSize(photos, targetW, targetH) {
 }
 
 /**
+ * Aplica un valor en cm como el lado largo a todas las fotos,
+ * ajustando el otro lado según la proporción original de cada imagen.
+ */
+export function applyLongSideToAll(photos, longSideCM) {
+  const L = parseFloat(longSideCM);
+  if (!L || L <= 0) return photos;
+
+  return photos.map(p => {
+    const ratio = p.originalRatio || 1;
+    let finalW, finalH;
+
+    if (ratio >= 1) {
+      // Foto horizontal: el lado largo es el ancho
+      finalW = L;
+      finalH = L / ratio;
+    } else {
+      // Foto vertical: el lado largo es el alto
+      finalH = L;
+      finalW = L * ratio;
+    }
+
+    return {
+      ...p,
+      widthCM: (Math.round(finalW * 10) / 10).toFixed(1),
+      heightCM: (Math.round(finalH * 10) / 10).toFixed(1),
+      isRatioLocked: true,
+      rotation: 0,
+    };
+  });
+}
+
+/**
  * Carga una imagen desde una URL y devuelve un HTMLImageElement resuelto
  */
 export function loadImage(url) {
