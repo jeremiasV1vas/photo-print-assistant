@@ -1,16 +1,67 @@
-# React + Vite
+# Photo Print Assistant 📸🖨️
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplicación de escritorio diseñada para **librerías y centros de impresión**, pensada para que cualquier persona (incluso con poco manejo de computadoras) pueda acomodar, ajustar e imprimir lotes de fotografías fácilmente en hojas estándar (A4 y Carta), aprovechando al máximo el papel sin necesidad de programas complejos como Word o Photoshop.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## ✨ Características Principales
 
-## React Compiler
+### 1. Vista Previa en Vivo Lado a Lado
+- **Pantalla unificada**: Lista de fotos a la izquierda y hoja de impresión en vivo a la derecha. Cualquier cambio de tamaño, rotación o adición de fotos se refleja instantáneamente en la hoja real.
+- **Grilla adaptativa sin scroll**: Si el trabajo requiere varias hojas, se auto-escalan en proporción (1 grande, 2 lado a lado, o en cuadrícula) para ver todo el trabajo de un solo vistazo.
+- **Organización entre hojas**: Botones rápidos (`◀ H1`, `H2 ▶`) para mover fotos de una hoja a otra con un clic.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 2. Control de Medidas Directo y Flexible
+- **Medidas en cm siempre visibles**: Casilleros de `Ancho (cm) × Alto (cm)` editables en cualquier momento.
+- **Proporción de aspecto bloqueada por defecto (`🔒`)**: Al modificar el ancho o el alto, la otra dimensión se recalcula automáticamente respetando la relación de aspecto original para no deformar a las personas u objetos.
+- **Accesos rápidos**: Botones para tamaños estándar más pedidos (`10 × 15`, `13 × 18`, `15 × 21`, `9 × 13`, `20 × 30 cm`).
 
-## Expanding the Oxlint configuration
+### 3. Herramientas de Optimización Algorítmica Masiva
+- **⚡ Que todo entre en 1 hoja**: Búsqueda binaria que normaliza el área visual de todas las fotos cargadas para que queden con **tamaño homogéneo y equilibrado**, orientándolas y escalándolas al máximo tamaño posible dentro de 1 sola hoja.
+- **🔄 Girar para ahorrar hojas**: Prueba combinaciones de orientación (0° y 90°) para reducir automáticamente la cantidad de hojas A4 o Carta a imprimir.
+- **📐 Tamaño masivo ("Todas en")**:
+  - Botones para fijar todas las fotos a una medida estándar (`10 × 15`, `13 × 18`, etc.) manteniendo su proporción natural.
+  - **Lado largo personalizado**: Campo para fijar la medida del lado más largo (ej. `15 cm`) de todas las fotos del lote a la vez.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### 4. Generación de PDF e Impresión
+- Descarga directa de archivos PDF con resolución fotográfica (300 DPI equivalente).
+- Margen seguro imprimible de 4 mm preconfigurado para evitar cortes en bordes de impresora.
+
+---
+
+## 🚀 Tecnologías
+
+- **Framework**: [Electron](https://www.electronjs.org/) + [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Generación de Documentos**: [jsPDF](https://github.com/parallax/jsPDF)
+- **Calidad de Código**: [Oxlint](https://oxc.rs/)
+
+---
+
+## 🛠️ Instalación y Desarrollo
+
+### Requisitos
+- Node.js (versión 18 o superior)
+- npm
+
+### Pasos
+
+1. Clonar el repositorio:
+   ```bash
+   git clone https://github.com/jeremiasV1vas/photo-print-assistant.git
+   cd photo-print-assistant
+   ```
+
+2. Instalar dependencias:
+   ```bash
+   npm install
+   ```
+
+3. Iniciar la aplicación en modo desarrollo:
+   ```bash
+   npm run dev
+   ```
+
+4. Generar el ejecutable de producción:
+   ```bash
+   npm run build
+   ```
