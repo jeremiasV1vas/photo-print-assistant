@@ -23,7 +23,7 @@ function PhotoCard({ photo, onUpdate, onRemove }) {
   const currentW = parseFloat(photo.widthCM) || 10;
   const currentH = parseFloat(photo.heightCM) || 15;
   const currentRotation = photo.rotation || 0;
-  const isRatioLocked = photo.isRatioLocked ?? false;
+  const isRatioLocked = photo.isRatioLocked !== false;
 
   const handleWidthChange = (e) => {
     const val = e.target.value;
@@ -246,7 +246,7 @@ function App() {
         url,
         widthCM: 10,
         heightCM: 15,
-        isRatioLocked: false,
+        isRatioLocked: true,
         originalRatio: dimensions.ratio,
         rotation: 0,
       };
@@ -378,8 +378,7 @@ function App() {
             <aside className="preview-column">
               <div className="preview-sticky-wrapper">
                 <div className="preview-title-row">
-                  <h2>📄 Vista previa de la hoja</h2>
-                  <span className="live-badge">En vivo</span>
+                  <h2>📄 Hojas para imprimir ({totalPages})</h2>
                 </div>
 
                 {/* Visor de Hoja Real */}

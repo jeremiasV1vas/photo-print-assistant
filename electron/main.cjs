@@ -26,6 +26,8 @@ function createWindow() {
     },
   });
 
+  mainWindow.maximize();
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
     // mainWindow.webContents.openDevTools();
