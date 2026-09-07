@@ -63,7 +63,13 @@ Aplicación de escritorio diseñada para **librerías y centros de impresión**,
    npm run dev
    ```
 
-4. Generar el ejecutable de producción:
+4. Generar el ejecutable portable para Windows (`.exe`):
+   ```bash
+   npm run build:win
+   ```
+   El archivo generado quedará en la carpeta `dist-electron/Photo Print Assistant 1.2.0.exe` listo para copiar a un pendrive y usar directamente en cualquier computadora con Windows 10/11 sin necesidad de instalación.
+
+5. Generar paquete para la plataforma actual (Linux/Mac/Windows):
    ```bash
    npm run build
    ```
