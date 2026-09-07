@@ -444,3 +444,39 @@ export async function generatePDF(photos, paperKey = 'A4', customLayout = null) 
   pdf.save('fotos-para-imprimir.pdf');
   return validPages.length;
 }
+
+/**
+ * Prepara las páginas y fotos con sus coordenadas en milímetros y data URLs
+ * de alta resolución (300 DPI) para impresión directa en la impresora física.
+ * @param {Array} photos - Array de fotos
+ * @param {string} paperKey - 'A4' | 'Carta'
+ * @param {Object} [customLayout] - Opcional: layout ya calculado para coincidir con la vista previa
+ */
+export async function preparePrintPages(photos, paperKey = 'A4', customLayout = null) {
+  const { pages, paper } = customLayout || layoutPhotos(photos, paperKey);
+
+  const validPages = pages.filter(p => p.length > 0);
+  if (validPages.length === 0) {
+    throw new Error('No hay fotos colocadas para imprimir.');
+  }
+
+  const processedPages = [];
+  for (const items of validPages) {
+    const pageItems = [];
+    for (const item of items) {
+      const img = await loadImage(item.photo.url);
+      const rot = item.photo.rotation || 0;
+      const dataUrl = imageToDataURL(img, item.w, item.h, rot);
+      pageItems.push({
+        dataUrl,
+        x: item.x,
+        y: item.y,
+        w: item.w,
+        h: item.h,
+      });
+    }
+    processedPages.push(pageItems);
+  }
+
+  return { pages: processedPages, paper };
+}

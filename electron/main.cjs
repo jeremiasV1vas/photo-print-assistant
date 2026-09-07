@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 // Cargar variables de entorno desde .env si existe
 try {
@@ -137,5 +138,187 @@ En "analysis" indicá si la orientación es adecuada o si hay riesgo de cortar a
     throw lastError || new Error('No se pudo conectar con ningún modelo de IA disponible.');
   } catch (error) {
     return { success: false, error: `Error de IA: ${error.message}` };
+  }
+});
+
+// Consulta y devuelve la lista de impresoras disponibles en el sistema operativo
+ipcMain.handle('get-printers', async () => {
+  try {
+    const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : new BrowserWindow({ show: false });
+    const printers = await win.webContents.getPrintersAsync();
+    if (win !== mainWindow && !win.isDestroyed()) {
+      win.destroy();
+    }
+    return { success: true, printers };
+  } catch (err) {
+    return { success: false, error: err.message, printers: [] };
+  }
+});
+
+// Imprime las páginas directamente en la impresora
+ipcMain.handle('print-pages', async (event, { pages, paper, deviceName, silent = false }) => {
+  if (!pages || pages.length === 0) {
+    return { success: false, error: 'No hay páginas para imprimir' };
+  }
+
+  const paperWidth = paper?.width || 210;
+  const paperHeight = paper?.height || 297;
+
+  // Generamos un documento HTML con dimensiones exactas en milímetros y saltos de página limpios
+  const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Imprimir Fotos - Photo Print Assistant</title>
+  <style>
+    @page {
+      size: ${paperWidth}mm ${paperHeight}mm;
+      margin: 0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: ${paperWidth}mm;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sheet-page {
+      width: ${paperWidth}mm;
+      height: ${paperHeight}mm;
+      position: relative;
+      page-break-after: always;
+      break-after: page;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .sheet-page:last-child {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    .photo-item {
+      position: absolute;
+      display: block;
+      overflow: hidden;
+    }
+    .photo-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  ${pages
+    .map(
+      (items, pageIdx) => `
+    <div class="sheet-page" data-page="${pageIdx + 1}">
+      ${items
+        .map(
+          item => `
+        <div class="photo-item" style="left: ${item.x}mm; top: ${item.y}mm; width: ${item.w}mm; height: ${item.h}mm;">
+          <img src="${item.dataUrl}" />
+        </div>
+      `
+        )
+        .join('')}
+    </div>
+  `
+    )
+    .join('')}
+</body>
+</html>`;
+
+  const tempFilePath = path.join(
+    app.getPath('temp'),
+    `print_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.html`
+  );
+
+  let printWin = null;
+  try {
+    fs.writeFileSync(tempFilePath, htmlContent, 'utf-8');
+
+    printWin = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
+
+    await printWin.loadFile(tempFilePath);
+
+    const printOptions = {
+      silent: Boolean(silent),
+      printBackground: true,
+      margins: { marginType: 'none' },
+      pageSize: {
+        width: Math.round(paperWidth * 1000), // microns
+        height: Math.round(paperHeight * 1000), // microns
+      },
+    };
+
+    if (deviceName) {
+      printOptions.deviceName = deviceName;
+    }
+
+    return await new Promise((resolve) => {
+      let resolved = false;
+
+      const cleanup = () => {
+        if (fs.existsSync(tempFilePath)) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {
+            // Ignorar error al borrar temporal
+          }
+        }
+        if (printWin && !printWin.isDestroyed()) {
+          try {
+            printWin.destroy();
+          } catch {
+            // Ignorar error al destruir ventana
+          }
+        }
+      };
+
+      printWin.webContents.print(printOptions, (success, failureReason) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+
+        if (success) {
+          resolve({ success: true, pages: pages.length });
+        } else {
+          resolve({
+            success: false,
+            cancelled: failureReason === 'cancelled',
+            error: failureReason || 'Error desconocido al imprimir',
+          });
+        }
+      });
+    });
+  } catch (err) {
+    if (fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch {
+        // Ignorar
+      }
+    }
+    if (printWin && !printWin.isDestroyed()) {
+      try {
+        printWin.destroy();
+      } catch {
+        // Ignorar
+      }
+    }
+    return { success: false, error: err.message };
   }
 });

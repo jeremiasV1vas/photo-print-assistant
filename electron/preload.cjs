@@ -4,5 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => ipcRenderer.invoke('ping'),
   listModels: () => ipcRenderer.invoke('list-models'),
   analyzeImage: (imageBase64, mimeType, targetSize) =>
-    ipcRenderer.invoke('analyze-image', imageBase64, mimeType, targetSize)
+    ipcRenderer.invoke('analyze-image', imageBase64, mimeType, targetSize),
+  getPrinters: () => ipcRenderer.invoke('get-printers'),
+  printPages: (payload) => ipcRenderer.invoke('print-pages', payload)
 });

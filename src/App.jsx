@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import './index.css';
 import {
   generatePDF,
+  preparePrintPages,
   layoutPhotos,
   optimizeRotations,
   fitAllToOneSheet,
@@ -167,8 +168,35 @@ function App() {
   const [paperSize, setPaperSize] = useState('A4');
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfResult, setPdfResult] = useState(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printResult, setPrintResult] = useState(null);
+  const [printers, setPrinters] = useState([]);
+  const [selectedPrinter, setSelectedPrinter] = useState('');
   const [manualPageAssignments, setManualPageAssignments] = useState(null);
   const [customLongSide, setCustomLongSide] = useState('15');
+
+  // Detectar impresoras instaladas en el sistema (vía Electron)
+  useEffect(() => {
+    async function fetchPrinters() {
+      if (window.electronAPI?.getPrinters) {
+        try {
+          const res = await window.electronAPI.getPrinters();
+          if (res?.success && Array.isArray(res.printers)) {
+            setPrinters(res.printers);
+            const def = res.printers.find(p => p.isDefault);
+            if (def) {
+              setSelectedPrinter(def.name);
+            } else if (res.printers.length > 0) {
+              setSelectedPrinter(res.printers[0].name);
+            }
+          }
+        } catch {
+          // Ignorar si falla la consulta
+        }
+      }
+    }
+    fetchPrinters();
+  }, []);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -287,6 +315,108 @@ function App() {
       setPdfResult({ success: false, error: err.message });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleDirectPrint = async () => {
+    const invalid = photos.filter(p => !parseFloat(p.widthCM) || !parseFloat(p.heightCM));
+    if (invalid.length > 0) {
+      alert(`Faltan medidas válidas en ${invalid.length} foto(s). Por favor revisá que tengan ancho y alto.`);
+      return;
+    }
+
+    setIsPrinting(true);
+    setPrintResult(null);
+    setPdfResult(null);
+
+    try {
+      const payload = await preparePrintPages(photos, paperSize, layout);
+
+      if (window.electronAPI?.printPages) {
+        const res = await window.electronAPI.printPages({
+          pages: payload.pages,
+          paper: payload.paper,
+          deviceName: selectedPrinter || undefined,
+          silent: false,
+        });
+
+        if (res.success) {
+          setPrintResult({
+            success: true,
+            pages: res.pages,
+            message: `¡Enviado a imprimir con éxito! (${res.pages} hoja${res.pages > 1 ? 's' : ''})`,
+          });
+        } else if (res.cancelled) {
+          setPrintResult({
+            cancelled: true,
+            message: 'Impresión cancelada por el usuario.',
+          });
+        } else {
+          setPrintResult({
+            success: false,
+            error: res.error || 'No se pudo completar la impresión.',
+          });
+        }
+      } else {
+        // Modo web / navegador sin Electron
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+          throw new Error('El navegador bloqueó la ventana emergente de impresión.');
+        }
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Imprimir Fotos</title>
+  <style>
+    @page { size: ${payload.paper.width}mm ${payload.paper.height}mm; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: ${payload.paper.width}mm; margin: 0; padding: 0; background: #fff; }
+    .sheet-page { width: ${payload.paper.width}mm; height: ${payload.paper.height}mm; position: relative; page-break-after: always; break-after: page; overflow: hidden; }
+    .sheet-page:last-child { page-break-after: avoid; break-after: avoid; }
+    .photo-item { position: absolute; display: block; overflow: hidden; }
+    .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  </style>
+</head>
+<body>
+  ${payload.pages
+    .map(
+      (items, idx) => `
+    <div class="sheet-page" data-page="${idx + 1}">
+      ${items
+        .map(
+          it => `
+        <div class="photo-item" style="left: ${it.x}mm; top: ${it.y}mm; width: ${it.w}mm; height: ${it.h}mm;">
+          <img src="${it.dataUrl}" />
+        </div>
+      `
+        )
+        .join('')}
+    </div>
+  `
+    )
+    .join('')}
+  <script>
+    window.onload = () => {
+      window.print();
+      window.onafterprint = () => window.close();
+    };
+  </script>
+</body>
+</html>`;
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setPrintResult({
+          success: true,
+          pages: payload.pages.length,
+          message: `Ventana de impresión abierta (${payload.pages.length} hoja${payload.pages.length > 1 ? 's' : ''}).`,
+        });
+      }
+    } catch (err) {
+      setPrintResult({ success: false, error: err.message });
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -443,7 +573,7 @@ function App() {
 
                 {/* Panel inferior de impresión / PDF */}
                 <div className="pdf-panel">
-                  <div className="pdf-panel-row">
+                  <div className="pdf-panel-settings">
                     <div className="paper-selector-block">
                       <label className="pdf-label">Tamaño de hoja:</label>
                       <div className="paper-buttons">
@@ -460,22 +590,70 @@ function App() {
                       </div>
                     </div>
 
+                    {printers.length > 0 && (
+                      <div className="printer-selector-block">
+                        <label htmlFor="printer-select" className="pdf-label">
+                          🖨️ Impresora:
+                        </label>
+                        <select
+                          id="printer-select"
+                          className="select-printer"
+                          value={selectedPrinter}
+                          onChange={(e) => setSelectedPrinter(e.target.value)}
+                        >
+                          {printers.map(p => (
+                            <option key={p.name} value={p.name}>
+                              {p.name} {p.isDefault ? '(Predeterminada)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pdf-actions-row">
                     <button
-                      id="generate-pdf-btn"
+                      id="direct-print-btn"
                       type="button"
-                      className={`btn-generate ${isGenerating ? 'loading' : ''}`}
-                      onClick={handleGeneratePDF}
-                      disabled={isGenerating}
+                      className={`btn-direct-print ${isPrinting ? 'loading' : ''}`}
+                      onClick={handleDirectPrint}
+                      disabled={isPrinting || isGenerating}
+                      title="Manda a imprimir las hojas directamente a la impresora"
                     >
-                      {isGenerating ? '⏳ Generando PDF...' : `🖨️ Generar PDF (${totalPages} hoja${totalPages > 1 ? 's' : ''})`}
+                      {isPrinting
+                        ? '⏳ Enviando a impresora...'
+                        : `🖨️ Imprimir directo (${totalPages} hoja${totalPages > 1 ? 's' : ''})`}
+                    </button>
+
+                    <button
+                      id="download-pdf-btn"
+                      type="button"
+                      className={`btn-download-pdf ${isGenerating ? 'loading' : ''}`}
+                      onClick={handleGeneratePDF}
+                      disabled={isGenerating || isPrinting}
+                      title="Descarga el archivo PDF para guardarlo en la computadora"
+                    >
+                      {isGenerating ? '⏳ Generando PDF...' : '💾 Descargar PDF'}
                     </button>
                   </div>
+
+                  {printResult && (
+                    <div
+                      className={`print-feedback-banner ${
+                        printResult.success ? 'success' : printResult.cancelled ? 'info' : 'error'
+                      }`}
+                    >
+                      {printResult.success && `✅ ${printResult.message}`}
+                      {printResult.cancelled && `ℹ️ ${printResult.message}`}
+                      {printResult.error && `❌ Error al imprimir: ${printResult.error}`}
+                    </div>
+                  )}
 
                   {pdfResult && (
                     <div className={`pdf-result ${pdfResult.success ? '' : 'error'}`}>
                       {pdfResult.success
-                        ? `✅ ¡Listo! Se generó el PDF en ${pdfResult.pages} hoja${pdfResult.pages > 1 ? 's' : ''}. Ya podés imprimirlo.`
-                        : `❌ Error: ${pdfResult.error}`}
+                        ? `✅ ¡Listo! Se descargó el PDF en ${pdfResult.pages} hoja${pdfResult.pages > 1 ? 's' : ''}.`
+                        : `❌ Error al crear PDF: ${pdfResult.error}`}
                     </div>
                   )}
                 </div>
