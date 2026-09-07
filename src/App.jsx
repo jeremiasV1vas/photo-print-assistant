@@ -325,6 +325,14 @@ function App() {
       return;
     }
 
+    if (window.electronAPI && printers.length === 0) {
+      setPrintResult({
+        success: false,
+        error: 'No se detectó ninguna impresora instalada en este equipo. Podés conectar tu impresora o utilizar el botón "💾 Descargar PDF".',
+      });
+      return;
+    }
+
     setIsPrinting(true);
     setPrintResult(null);
     setPdfResult(null);
@@ -590,7 +598,7 @@ function App() {
                       </div>
                     </div>
 
-                    {printers.length > 0 && (
+                    {printers.length > 0 ? (
                       <div className="printer-selector-block">
                         <label htmlFor="printer-select" className="pdf-label">
                           🖨️ Impresora:
@@ -607,6 +615,10 @@ function App() {
                             </option>
                           ))}
                         </select>
+                      </div>
+                    ) : (
+                      <div className="printer-status-badge warning" title="No se detectaron impresoras instaladas en este equipo">
+                        <span>⚠️ Sin impresoras detectadas</span>
                       </div>
                     )}
                   </div>

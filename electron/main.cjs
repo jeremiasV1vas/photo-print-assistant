@@ -268,6 +268,21 @@ ipcMain.handle('print-pages', async (event, { pages, paper, deviceName, silent =
       printOptions.deviceName = deviceName;
     }
 
+    const availablePrinters = await printWin.webContents.getPrintersAsync();
+    if (!availablePrinters || availablePrinters.length === 0) {
+      if (fs.existsSync(tempFilePath)) {
+        try { fs.unlinkSync(tempFilePath); } catch {}
+      }
+      if (printWin && !printWin.isDestroyed()) {
+        try { printWin.destroy(); } catch {}
+      }
+      return {
+        success: false,
+        noPrinters: true,
+        error: 'No se encontró ninguna impresora instalada en el sistema. Por favor conectá o configurá tu impresora, o utilizá el botón "💾 Descargar PDF".',
+      };
+    }
+
     return await new Promise((resolve) => {
       let resolved = false;
 
@@ -296,10 +311,14 @@ ipcMain.handle('print-pages', async (event, { pages, paper, deviceName, silent =
         if (success) {
           resolve({ success: true, pages: pages.length });
         } else {
+          let friendlyError = failureReason || 'Error desconocido al imprimir';
+          if (failureReason === 'Failed to enumerate printers') {
+            friendlyError = 'No se detectaron impresoras activas en el sistema operativo.';
+          }
           resolve({
             success: false,
             cancelled: failureReason === 'cancelled',
-            error: failureReason || 'Error desconocido al imprimir',
+            error: friendlyError,
           });
         }
       });
