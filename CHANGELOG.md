@@ -2,6 +2,11 @@
 
 Todos los cambios notables de este proyecto se documentan en este archivo.
 
+## [1.2.1] - 2026-09-08
+
+### Corregido
+- **Pantalla en blanco al iniciar el ejecutable en Windows**: Configurado `base: './'` en `vite.config.js` para que los bundles JavaScript y hojas de estilo se carguen correctamente con rutas relativas bajo el protocolo `file://` en producción dentro de Electron.
+
 ## [1.2.0] - 2026-09-07
 
 ### Agregado
